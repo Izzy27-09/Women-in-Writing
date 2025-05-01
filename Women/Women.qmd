@@ -65,5 +65,23 @@ metadata = pd.read_csv(
 ```
 
 ```{python}
+# Glance length of data
+print(len(metadata))
+```
 
+```{python}
+metadata=metadata[['gender','gender_guess','occupation']]
+```
+
+### Field definitions and distributional stats
+
+Most of the metadata fields are self-explanatory, but here are some details. Note that not every field in the metadata is described below.
+
+-   `source_id`: This is the name of the file corresponding to the volume. You can use it to match metadata records to full-text documents. Note that the corpus includes a nontrivial number of multivolume works. These volumes have `source_id`s like `eaf086v1` or `Wright2-1720v2`.
+-   `gender`: Author gender. `M`, `F`, or `NaN` (= unknown).
+-   `gender_guess`: Was the author gender assignment determined by biographical research (`0`) or by guessing on the basis of the author's name (`1`)?
+-   `occupation`: The author's primary employment identification. Recall that the US in the nineteenth century didn't always have a large market for novels, so many of the authors in the corpus made their living by other means.
+
+```{python}
+metadata.head()
 ```
