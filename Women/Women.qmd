@@ -1,0 +1,21 @@
+---
+title: "Hidden Voices: Exploring Gender Disguise and Literary Parallels in Historical Authorship"
+subtitle: "A Machine Learning Approach to Classifying Author Gender from Biographical and Inferred Data"
+author: "Israel Davidson"
+format:
+    typst:
+        toc: true
+        toc-depth: 4
+---
+
+## 1. Introduction and hypothesis
+
+### Introduction
+
+Throughout history, the roles and abilities of women have often been underestimated, leading to societal restrictions that prevented them from fully participating in many fields. Women's contributions were frequently dismissed, and many were persecuted for engaging in activities considered outside the scope of traditional female roles. For example, the mere act of a woman being literate—knowing how to read, write, and perform basic mathematical operations—was once deemed suspicious and could even lead to accusations of witchcraft. This societal limitation contributed to a phenomenon where many women had to disguise their true identities in order to access opportunities reserved for men.
+
+Throughout history, there are many stories of women who assumed male personas to participate in male-dominated fields. Frances Clayton, for instance, was an American woman who disguised herself as a man to serve in the Union Army during the Civil War. Similarly, Mary Ann Evans, one of the most influential English novelists of the 19th century, wrote under the male pseudonym George Eliot. These instances reflect the lengths to which women had to go to gain recognition and the ability to pursue their talents in areas traditionally reserved for men.
+
+### Hypothesis
+
+Given the historical context where women often had to conceal their identities to participate in various professions and causes, it is hypothesized that books written by women will exhibit similarities to books written by men whose gender is only inferred from their names. This assumption is based on the belief that, despite the challenges faced by women, their writing styles and content would align with the broader literary trends of their time, as women writers often adopted male pen names to avoid bias or limited opportunities. \## 2. Data and methods
