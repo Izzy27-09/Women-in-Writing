@@ -85,3 +85,203 @@ Most of the metadata fields are self-explanatory, but here are some details. Not
 ```{python}
 metadata.head()
 ```
+
+```{python}
+# Occurrence counts for selected metadata fields
+for col in ['gender', 'gender_guess', 'occupation']:
+    display(metadata[col].value_counts())
+    print()
+```
+
+
+```{python}
+#Merging all of the text files corpuses into a singular dataframe
+folder_path = 'corpus'
+
+# Create an empty list to store file data
+data = []
+
+# Loop over all files in the folder
+for filename in os.listdir(folder_path):
+    file_path = os.path.join(folder_path, filename)
+    
+   # Ensure we're only reading files (and not folders)
+    if os.path.isfile(file_path):
+        with open(file_path, 'r', encoding='utf-8') as file:
+            content = file.read().replace('\n', ' ')  # Remove newline characters
+            # Append a dictionary with the filename as 'id' and cleaned content as 'text'
+            data.append({'source_id': filename, 'text': content})
+
+# Create a DataFrame from the list of dictionaries
+df = pd.DataFrame(data)
+
+
+df.head()
+```
+
+
+```{python}
+#merging both the metadata and datframe containing our text
+merged_data=metadata.merge(df,on="source_id",how="left")
+merged_data.head()
+```
+
+### Male Guess Data Summary
+
+
+```{python}
+male_guess=merged_data[(merged_data['gender']=='M') & (merged_data['gender_guess']==1.0)]
+print(len(male_guess))
+male_guess.head()
+```
+
+
+```{python}
+# Occurrence counts for selected metadata fields
+display(male_guess['occupation'].value_counts(dropna=False))
+```
+
+I find it interesting that the entire dataframe for when the author is assigned Male only based off of their name that they all had an occupation of NaN
+
+### Male Biological Data Summary
+
+```{python}
+male_bio=merged_data[(merged_data['gender']=='M') & (merged_data['gender_guess']==0.0)]
+print(len(male_bio))
+male_bio.head()
+```
+
+
+```{python}
+# Occurrence counts for selected metadata fields
+display(male_bio['occupation'].value_counts(dropna=False))
+```
+
+### Female Biological Data Summary
+
+```{python}
+fe_bio=merged_data[(merged_data['gender']=='F') & (merged_data['gender_guess']==0.0)]
+print(len(fe_bio))
+fe_bio.head()
+```
+
+
+```{python}
+# Occurrence counts for selected metadata fields
+display(fe_bio['occupation'].value_counts(dropna=False))
+```
+
+### Combination of datasets
+Now I will be creating two separate dataframes to perform my tests on. I will be combining the researched biological male and female datasets as well as combining the biological male dataset and the guessed one
+
+```{python}
+bio=pd.concat([male_bio,fe_bio],axis=0).set_index('source_id')
+bio.head()
+```
+
+
+```{python}
+guess=pd.concat([male_bio,male_guess],axis=0).set_index('source_id')
+guess['gender_guess_label'] = guess['gender_guess'].map({0.0: "Biological", 1.0: "Guessed"})
+guess.head()
+```
+
+## 3. Results
+### Vectorizer
+For this block we shall set up our text vectorizer that will be used one both of our dataframes
+
+```{python}
+vectorizer = TfidfVectorizer(
+    strip_accents='unicode',   # Normalize and remove accents from characters 
+    lowercase=True,            # Convert all text to lowercase to ensure consistency
+    use_idf=True,              # Apply Inverse Document Frequency (IDF) weighting to emphasize rare words
+    min_df=0.05,               # Ignore terms that appear in less than 5% of documents (helps remove rare noise)
+    max_df=0.9,                # Ignore terms that appear in more than 90% of documents (removes overly common words)
+    ngram_range=(1, 2),        # Extract unigrams (single words) to 2-grams (phrases up to 2 words)
+    stop_words='english'       # Remove common English stop words (e.g., 'the', 'and', 'is')
+    ,max_features=47354
+)
+
+# Vectorize and normalize the text data
+features_guess = vectorizer.fit_transform(guess['text'])
+features_bio = vectorizer.fit_transform(bio['text'])
+print("Feature matrix shape of bio dataframe:", features_bio.shape)
+print("Feature matrix shape of guess dataframe:", features_guess.shape)
+```
+
+### Truncated SVD
+#### Guess
+
+```{python}
+X_reduced_bio = TruncatedSVD(random_state=42,n_components=2).fit_transform(features_bio)
+
+svd_bio=pd.DataFrame({'SVD1':X_reduced_bio[:,0],'SVD2':X_reduced_bio[:,1],'Gender':bio['gender'],'Story':bio['text']})
+svd_bio.head(10)
+```
+
+
+```{python}
+alt.Chart(svd_bio,title=f"Scatterplot of Truncated SVD for biologically defined Males and Females").mark_circle(size=60).encode(
+    x='SVD1',
+    y='SVD2',
+    color='Gender',
+    tooltip=['Gender', 'Story']
+).properties(
+    width=700,
+    height=500
+).interactive()
+```
+
+#### Guess
+
+```{python}
+X_reduced_guess = TruncatedSVD(random_state=42,n_components=2).fit_transform(features_guess)
+```
+
+
+```{python}
+plt.figure(figsize=(12, 8))
+sns.scatterplot(x=X_reduced_guess[:,0], y=X_reduced_guess[:,1], hue=guess['gender_guess_label'],alpha=0.7,s=100,palette='viridis')
+plt.title("Scatterplot of Truncated SVD for Biological Males and Males who guessed based on Name")
+plt.xlabel("Component 1") 
+plt.ylabel("Component 2")  
+plt.legend(title="Gender Guess", bbox_to_anchor=(1.05, 1), loc='upper left') 
+plt.show()
+```
+
+### UMAP
+#### Biological
+
+```{python}
+X_umap_bio = UMAP(random_state=42,n_components=2).fit_transform(features_bio)
+```
+
+
+```{python}
+plt.figure(figsize=(12, 8))
+sns.scatterplot(x=X_umap_bio[:,0], y=X_umap_bio[:,1], hue=bio['gender'],alpha=0.7,s=100,palette='viridis')
+plt.title("Scatterplot of UMAP for biologically defined Males and Females")
+plt.xlabel("Component 1") 
+plt.ylabel("Component 2")  
+plt.legend(title="Gender", bbox_to_anchor=(1.05, 1), loc='upper left') 
+plt.show()
+```
+
+#### Guess
+
+```{python}
+X_umap_guess = UMAP(random_state=42,n_components=2).fit_transform(features_guess)
+```
+
+
+```{python}
+plt.figure(figsize=(12, 8))
+sns.scatterplot(x=X_umap_guess[:,0], y=X_umap_guess[:,1], hue=guess['gender_guess_label'],alpha=0.7,s=100,palette='viridis')
+plt.title("Scatterplot of UMAP for Biological Males and Males who guessed based on Name")
+plt.xlabel("Component 1") 
+plt.ylabel("Component 2")  
+plt.legend(title="Gender Guess", bbox_to_anchor=(1.05, 1), loc='upper left') 
+plt.show()
+```
+
+### Classification
