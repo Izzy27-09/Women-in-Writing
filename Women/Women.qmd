@@ -1,11 +1,13 @@
 ---
-title: "Hidden Voices: Exploring Gender Disguise and Literary Parallels in Historical Authorship"
+title: "Hidden Voices: Exploring Gender Disguise and <br> Literary Parallels in Historical Authorship"
 subtitle: "A Machine Learning Approach to Classifying Author Gender from Biographical and Inferred Data"
 author: "Israel Davidson"
 format:
     typst:
         toc: true
         toc-depth: 4
+execute: 
+  cache: true
 ---
 
 ## 1. Introduction and hypothesis
