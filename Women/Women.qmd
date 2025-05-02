@@ -285,3 +285,204 @@ plt.show()
 ```
 
 ### Classification
+For this I will be creating different models to be able to predict the gender of an author. The idea here is that I will be taking the best model and will check to see if the model will mostly guess if the what the gender of an author is if the gender guess column is 1. For this step I will be using both of the datasets to complete this experiment. My biological dataset will be used in order to train the model and the male guess model to perfrom predictions on it. To somewhat deal with the imbalance of data points in both datasets I will be using the SMOTE technique as we already used a vectorizer on most of the data
+
+
+```{python}
+
+def compare_scores(scores_dict):
+    '''
+    Takes a dictionary of cross_validate scores.
+    Returns a color-coded Pandas dataframe that summarizes those scores.
+    '''
+    df = pd.DataFrame(scores_dict).T.map(np.mean).style.background_gradient(cmap='RdYlGn')
+    return df
+```
+
+
+```{python}
+# Initialize LabelEncoder
+encoder_bio = LabelEncoder()
+
+# Fit the encoder separately on the 'gender' column of the bio dataset
+encoder_bio.fit(['M', 'F'])
+y_bio_encoded = encoder_bio.transform(bio['gender'])  # 'M' becomes 1, 'F' becomes 0
+```
+
+I am using SMOTE on the data to fix the imbalance of the male and female classes in the bio dataset, why creating synthetic examples
+
+
+```{python}
+#SMOTE Defining
+
+#Bio
+smote = SMOTE(random_state=42)
+X_smote_bio, y_smote_bio = smote.fit_resample(features_bio,y_bio_encoded)
+X_smote_bio_df = pd.DataFrame(X_smote_bio.toarray())  # Convert sparse matrix to dense
+```
+
+
+```{python}
+#baseline
+# Calculate baseline performance
+# Determine the most common label
+most_common_label = bio['gender'].mode()[0]  # Get the most common label
+
+# Create predictions (assign most common label to every observation)
+predictions = [most_common_label] * len(bio)
+
+# Calculate baseline accuracy
+baseline_accuracy = accuracy_score(bio['gender'], predictions)
+
+# Calculate baseline F1 score
+baseline_f1 = f1_score(bio['gender'], predictions, average='weighted')
+
+# Print the results
+print(f"Baseline Accuracy: {baseline_accuracy:.4f}")
+print(f"Baseline F1 Score: {baseline_f1:.4f}")
+
+#Score meterics to be used
+scoring = ['accuracy', 'precision', 'recall', 'f1', 'roc_auc']
+
+```
+
+
+```{python}
+%%time
+# Classifiers to test 
+classifiers = {
+    'kNN': KNeighborsClassifier(),
+    'Logit': LogisticRegression(max_iter=1000),
+    'Decision Tree': DecisionTreeClassifier(),
+    'Random Forest': RandomForestClassifier(),
+    'Multinomial NB': MultinomialNB()
+}
+
+scores_dict = {}
+for clf_name, clf in classifiers.items():
+    cv_results = cross_validate(clf, X_smote_bio, y_smote_bio, cv=5, scoring=scoring)
+    scores_dict[clf_name]=cv_results
+# Compare scores with the function
+compare_scores(scores_dict)
+```
+
+
+```{python}
+%%time
+
+# List of hyperparameters to tune
+n_estimators_range = [100, 200, 1000]
+max_depths_range = [5, 10, 15]
+
+# Placeholder for storing scores
+rf_scores_dict = {}
+
+# Loop through combinations of n_estimators and max_depth
+for n_estimators in n_estimators_range:
+    for max_depth in max_depths_range:
+        # Initialize RandomForestClassifier with current hyperparameters
+        rf = RandomForestClassifier(n_estimators=n_estimators, max_depth=max_depth, random_state=42)
+        
+        # Perform cross-validation
+        cv_results = cross_validate(rf, X_smote_bio, y_smote_bio, cv=5, scoring=scoring)  # Replace 'accuracy' with your preferred scoring metric
+        
+        # Store results
+        rf_scores_dict[(n_estimators, max_depth)] = cv_results
+
+# Display the results (assuming compare_scores is a function to display the results)
+compare_scores(rf_scores_dict)
+
+```
+
+We see from the tables above that a Random Forest Model with 15 n_estimators and a max_depth of 10000 is the best resulting model. For this next part of my classification I will be fitting a model with our SMOTE biological data. We do this to train the model on the entire dataset. However we shall be making my predictions using the entire dataset were the author's gender is assigned as M but has a mixture of if it is assigned because of research or because of guessing the author's name
+
+
+```{python}
+#Since My Random Forest did the best we shall use it to make our predictions
+# Initialize Random Forest classifier
+rf_classifier = RandomForestClassifier(n_estimators=15,max_depth=1000,random_state=42)
+
+# Train the model using Bio data
+rf_classifier.fit(X_smote_bio_df, y_smote_bio)
+
+# Predict on Guess data
+y_pred_guess = rf_classifier.predict(features_guess)
+
+```
+
+
+```{python}
+predictions_df = pd.DataFrame({
+    'Predicted': y_pred_guess,
+    'Guess_Label':guess['gender_guess_label'],
+    'Gender':guess['gender'],
+    "Guess":guess['gender_guess']
+    
+})
+
+predictions_df.head()
+```
+Rember from our label encoder that M is as 1 and and F is marked as 0. Also remember that Guess is saved as 1 while research that backs up the gender of the author is saved as 0. For this I will be checking the errors within the predictions to see what kinds of inference can be pulled with this information.
+
+
+```{python}
+# Entries where Guess is 1 but Predicted is 1
+guess_1_predicted_1 = predictions_df[(predictions_df['Guess'] == 1.0) & (predictions_df['Predicted'] == 1)]
+print("The Model predicting Male when the author gender is guessed")
+print(len(guess_1_predicted_1))
+guess_1_predicted_1
+```
+
+
+```{python}
+# Entries where Guess is 1 but Predicted is 0
+guess_1_predicted_0 = predictions_df[(predictions_df['Guess'] == 1) & (predictions_df['Predicted'] == 0)]
+print("The Model predicting Female when the author gender is guessed")
+print(len(guess_1_predicted_0))
+guess_1_predicted_0
+
+```
+
+
+```{python}
+# Entries where Guess is 1 but Predicted is 0
+guess_0_predicted_0 = predictions_df[(predictions_df['Guess'] == 0) & (predictions_df['Predicted'] == 0)]
+print("The Model predicting Female when the author gender is  not guessed")
+print(len(guess_0_predicted_0))
+guess_0_predicted_0
+```
+
+
+```{python}
+guess_0_predicted_1 = predictions_df[(predictions_df['Guess'] == 0) & (predictions_df['Predicted'] == 1)]
+print("The Model predicting Male when the author gender is  not guessed")
+print(len(guess_0_predicted_1))
+guess_0_predicted_1
+```
+
+## 4. Discussion and conclusions
+### SVD
+When we first analyzed the graphs generated by SVD on the biological gender of the author, we observed that male authors did not exhibit a distinct pattern on the plot. They were spread across the graph without a clear clustering or trend. In contrast, female authors, while also somewhat spread out, tended to stay within a similar region, forming a more noticeable cluster. This clustering suggests that there may be some common characteristics shared by female authors that set them apart from male authors. However, the spread of male authors across the plot suggests a lack of a strong, inherent pattern for gender-specific writing traits, at least in terms of the features analyzed by SVD.
+
+When analyzing the data where the gender of the author was guessed, the pattern remained similar to the biological gender data. This suggests that the guess about the author's gender, whether accurate or not, did not drastically change the overall distribution of authors in the plot. The lack of a distinct gender-based pattern in either biological or guessed gender data further supports the idea that there may not be strong, easily detectable differences in the writing styles based solely on gender.
+
+### UMAP
+The UMAP plots revealed a subtle distinction in the biological gender data, with male and female authors showing slight separation. However, this difference was minimal and not pronounced enough to draw definitive conclusions. For the guessed gender data, the UMAP plots showed no discernible patterns, further reinforcing the idea that writing style is not inherently linked to gender, even when gender is assigned based on names rather than biological information. These findings challenge the assumption that gender significantly influences writing style, at least based on the features used in this analysis.
+
+### Classification Model
+To explore the potential connection between an author’s gender and their writing style, a classification model was trained using data from authors whose biological gender was known. The model was then applied to the guessed gender data to assess its accuracy. The objective was to determine whether the model would struggle with guessed gender data, particularly when predicting male authors. A consistent misclassification of guessed gender data would suggest a lack of discernible patterns in writing style related to gender.
+
+Interestingly, the model achieved a high ROC value of 0.99, indicating exceptional performance with minimal errors. Most guessed male authors were accurately classified as male by the model, suggesting that many guessed male authors were indeed biologically male. While historical context highlights instances where women used male pseudonyms to publish, this finding supports the likelihood that the majority of guessed male authors were accurately classified. This further suggests that gendered writing styles, if they exist, may not be strongly pronounced in the features analyzed.
+
+### Limitations
+- Gender Classification by the Researcher: The gender of many authors in the dataset was inferred by the researcher based on limited biographical information, such as names. This subjective classification introduces potential bias, which may undermine the reliability of the hypothesis and the model’s predictions. Misclassifications or assumptions about an author's gender could skew the results and influence the observed patterns.
+- Lack of Genre Information: The absence of genre data posed another challenge. Different genres often adhere to distinct writing conventions that may influence an author’s style. Historically, books were not categorized by genre as they are today, making it difficult to control for genre-related variations in the analysis. This limitation may have affected both the visualizations produced by SVD and UMAP and the performance of the classification model. Including genre information could provide deeper insights into whether observed patterns are more reflective of genre conventions than gender-specific traits.
+
+### Conclusion
+This study aimed to explore whether there is a discernible difference in writing styles between male and female authors, based on the assumption that gender influences literary expression. The hypothesis posited that books written by women would exhibit similarities to those written by men whose gender is inferred from their names, due to historical instances of women adopting male personas to access male-dominated fields.
+
+However, the findings from the SVD and UMAP analyses indicate that gender does not significantly influence writing style. The results showed only subtle differences between male and female authors, with no clear, distinct patterns emerging in either the biological or guessed gender data. The lack of a strong trend suggests that gender does not have a major impact on the literary characteristics of authorship, contrary to the hypothesis.
+
+Furthermore, the classification model, while highly accurate in predicting the gender of guessed authors, suggests that the guessed gender data still likely aligns with biological gender, particularly for male authors. This reinforces the idea that the guessed gender data did not significantly differ from the biological gender data in terms of writing style.
+
+Given these findings, the hypothesis that gender influences writing style and that books written by women would closely resemble those written by men (as inferred from their names) is rejected. The study provides evidence that gender does not play a decisive role in shaping literary style, at least not in a way that can be easily detected through the methods and features analyzed in this research. Future studies with more detailed data and further examination of other factors influencing writing style, such as genre, may offer more insight into the complex relationship between an author’s identity and their literary work.
